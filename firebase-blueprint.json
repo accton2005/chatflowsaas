@@ -1,0 +1,91 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user profile and subscription status.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "plan": { "type": "string", "enum": ["free", "starter", "pro", "business"] },
+        "subscriptionId": { "type": "string" },
+        "subscriptionStatus": { "type": "string" },
+        "stripeCustomerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "plan"]
+    },
+    "Chatbot": {
+      "title": "Chatbot Configuration",
+      "description": "Stores chatbot settings and personality.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerId": { "type": "string", "description": "User UID" },
+        "name": { "type": "string" },
+        "personality": { "type": "string" },
+        "language": { "type": "string" },
+        "behaviorRules": { "type": "string" },
+        "model": { "type": "string", "enum": ["gemini-3-flash-preview", "gpt-4o", "gpt-3.5-turbo"] },
+        "fallbackModel": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "name", "model"]
+    },
+    "KnowledgeBase": {
+      "title": "Knowledge Base Source",
+      "description": "Stores sources for RAG.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "chatbotId": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "type": { "type": "string", "enum": ["pdf", "url", "text", "docx"] },
+        "content": { "type": "string" },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "chatbotId", "ownerId", "type"]
+    },
+    "Message": {
+      "title": "Chat History",
+      "description": "Stores chat messages.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "chatbotId": { "type": "string" },
+        "userId": { "type": "string", "description": "Anonymous or registered user" },
+        "role": { "type": "string", "enum": ["user", "assistant"] },
+        "text": { "type": "string" },
+        "tokens": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "chatbotId", "role", "text"]
+    },
+    "Analytics": {
+      "title": "Usage Analytics",
+      "description": "Tracks usage per user/chatbot.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "chatbotId": { "type": "string" },
+        "totalMessages": { "type": "number" },
+        "totalTokens": { "type": "number" },
+        "date": { "type": "string", "format": "date" }
+      },
+      "required": ["ownerId", "date"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": "User", "description": "User profiles" },
+    "/chatbots/{chatbotId}": { "schema": "Chatbot", "description": "Chatbot configurations" },
+    "/chatbots/{chatbotId}/knowledge/{sourceId}": { "schema": "KnowledgeBase", "description": "Knowledge base sources" },
+    "/chatbots/{chatbotId}/messages/{messageId}": { "schema": "Message", "description": "Chat history" },
+    "/analytics/{analyticsId}": { "schema": "Analytics", "description": "Usage analytics" }
+  }
+}

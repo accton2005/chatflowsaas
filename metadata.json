@@ -1,0 +1,5 @@
+{
+  "name": "ChatFlow AI SaaS",
+  "description": "A complete multi-tenant SaaS platform for building and deploying AI chatbots with RAG (Knowledge Base) capabilities using Gemini and GPT-4.",
+  "requestFramePermissions": []
+}

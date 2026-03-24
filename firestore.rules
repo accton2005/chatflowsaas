@@ -1,0 +1,144 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required, immutable)
+    //   - email: string (required, immutable)
+    //   - role: string (required, enum: ['admin', 'user'])
+    //   - plan: string (required, enum: ['free', 'starter', 'pro', 'business'])
+    //
+    // Collection: chatbots
+    // Document ID: {chatbotId}
+    // Fields:
+    //   - id: string (required, immutable)
+    //   - ownerId: string (required, immutable)
+    //   - name: string (required)
+    //   - personality: string (optional)
+    //   - language: string (optional)
+    //   - behaviorRules: string (optional)
+    //   - model: string (required)
+    //   - isActive: boolean (required)
+    //
+    // Collection: chatbots/{chatbotId}/knowledge
+    // Document ID: {sourceId}
+    // Fields:
+    //   - id: string (required, immutable)
+    //   - chatbotId: string (required, immutable)
+    //   - ownerId: string (required, immutable)
+    //   - type: string (required, enum: ['pdf', 'url', 'text', 'docx'])
+    //   - content: string (required)
+    //
+    // Collection: chatbots/{chatbotId}/messages
+    // Document ID: {messageId}
+    // Fields:
+    //   - id: string (required, immutable)
+    //   - chatbotId: string (required, immutable)
+    //   - role: string (required, enum: ['user', 'assistant'])
+    //   - text: string (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "elqelai@enarabat.ac.ma" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email', 'role', 'plan']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'user'] &&
+             data.plan in ['free', 'starter', 'pro', 'business'];
+    }
+
+    function isValidChatbot(data) {
+      return hasRequiredFields(['id', 'ownerId', 'name', 'model', 'isActive']) &&
+             data.id is string && data.ownerId is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.model is string &&
+             data.isActive is bool;
+    }
+
+    function isValidKnowledge(data) {
+      return hasRequiredFields(['id', 'chatbotId', 'ownerId', 'type', 'content']) &&
+             data.id is string && data.chatbotId is string && data.ownerId is string &&
+             data.type in ['pdf', 'url', 'text', 'docx'] &&
+             data.content is string && data.content.size() < 1000000; // 1MB limit check
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(uid) && request.resource.data.role == 'user' || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(uid) && request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /chatbots/{chatbotId} {
+      allow read: if true; // Publicly readable for widgets
+      allow list: if isAuthenticated() && (request.query.limit <= 100 && (request.query.ownerId == request.auth.uid || isAdmin()));
+      allow create: if isAuthenticated() && isValidChatbot(request.resource.data) && isOwner(request.resource.data.ownerId);
+      allow update: if isAuthenticated() && isValidChatbot(request.resource.data) && isOwner(resource.data.ownerId) && request.resource.data.ownerId == resource.data.ownerId || isAdmin();
+      allow delete: if isAuthenticated() && isOwner(resource.data.ownerId) || isAdmin();
+
+      match /knowledge/{sourceId} {
+        allow read: if isAuthenticated() && isOwner(resource.data.ownerId);
+        allow create: if isAuthenticated() && isValidKnowledge(request.resource.data) && isOwner(request.resource.data.ownerId);
+        allow update: if isAuthenticated() && isValidKnowledge(request.resource.data) && isOwner(resource.data.ownerId);
+        allow delete: if isAuthenticated() && isOwner(resource.data.ownerId);
+      }
+
+      match /messages/{messageId} {
+        allow read: if true; // Chat history readable for the session
+        allow create: if true; // Anyone can send messages to a chatbot
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    match /analytics/{analyticsId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.ownerId) || isAdmin());
+      allow create, update: if isAdmin(); // Only backend/admin can update analytics
+      allow delete: if isAdmin();
+    }
+  }
+}
